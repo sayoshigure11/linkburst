@@ -1,103 +1,425 @@
-import Image from "next/image";
+"use client";
+
+import { useState, useMemo } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import type { Group, Link } from "@/lib/types";
+import { mockGroups } from "@/lib/mock-data";
+import { GroupCard } from "@/components/group-card";
+import { GroupDialog } from "@/components/group-dialog";
+import { LinkDialog } from "@/components/link-dialog";
+import { MobileNav } from "@/components/mobile-nav";
+import { Plus, Search, Star, Grid3x3, List, SettingsIcon } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { toast } from "sonner";
+
+type ViewMode = "grid" | "list";
+type SortMode = "name" | "recent" | "created";
+type TabMode = "home" | "search" | "add" | "settings";
 
 export default function Home() {
-  return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [groups, setGroups] = useState<Group[]>(mockGroups);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [viewMode, setViewMode] = useState<ViewMode>("grid");
+  const [sortMode, setSortMode] = useState<SortMode>("name");
+  const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+  const [currentTab, setCurrentTab] = useState<TabMode>("home");
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  const [groupDialogOpen, setGroupDialogOpen] = useState(false);
+  const [linkDialogOpen, setLinkDialogOpen] = useState(false);
+  const [editingGroup, setEditingGroup] = useState<Group | null>(null);
+  const [editingLink, setEditingLink] = useState<{
+    groupId: string;
+    link: Link;
+  } | null>(null);
+  const [selectedGroupForLink, setSelectedGroupForLink] = useState<
+    string | null
+  >(null);
+
+  const filteredAndSortedGroups = useMemo(() => {
+    let filtered = groups;
+
+    if (showFavoritesOnly) {
+      filtered = filtered.filter((g) => g.isFavorite);
+    }
+
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(
+        (g) =>
+          g.name.toLowerCase().includes(query) ||
+          g.links.some(
+            (l) =>
+              l.title.toLowerCase().includes(query) ||
+              l.url.toLowerCase().includes(query)
+          )
+      );
+    }
+
+    const sorted = [...filtered].sort((a, b) => {
+      if (sortMode === "name") {
+        return a.name.localeCompare(b.name, "ja");
+      } else if (sortMode === "recent") {
+        return (b.lastOpened?.getTime() || 0) - (a.lastOpened?.getTime() || 0);
+      } else {
+        return b.createdAt.getTime() - a.createdAt.getTime();
+      }
+    });
+
+    return sorted;
+  }, [groups, searchQuery, sortMode, showFavoritesOnly]);
+
+  const handleOpenAll = (group: Group) => {
+    group.links.forEach((link) => {
+      window.open(link.url, "_blank");
+    });
+
+    setGroups((prev) =>
+      prev.map((g) =>
+        g.id === group.id ? { ...g, lastOpened: new Date() } : g
+      )
+    );
+
+    toast("リンクを開きました", {
+      description: `${group.name}の${group.links.length}個のリンクを開きました`,
+    });
+  };
+
+  const handleToggleFavorite = (groupId: string) => {
+    setGroups((prev) =>
+      prev.map((g) =>
+        g.id === groupId ? { ...g, isFavorite: !g.isFavorite } : g
+      )
+    );
+  };
+
+  const handleSaveGroup = (data: Partial<Group> & { links?: Link[] }) => {
+    if (editingGroup) {
+      setGroups((prev) =>
+        prev.map((g) => (g.id === editingGroup.id ? { ...g, ...data } : g))
+      );
+      toast("グループを更新しました");
+    } else {
+      const newGroup: Group = {
+        id: Date.now().toString(),
+        name: data.name!,
+        color: data.color!,
+        icon: data.icon,
+        links: data.links || [],
+        isFavorite: false,
+        order: groups.length,
+        createdAt: new Date(),
+      };
+      setGroups((prev) => [...prev, newGroup]);
+      toast("グループを作成しました");
+    }
+    setEditingGroup(null);
+  };
+
+  const handleDeleteGroup = (groupId: string) => {
+    setGroups((prev) => prev.filter((g) => g.id !== groupId));
+    toast("グループを削除しました");
+  };
+
+  const handleDuplicateGroup = (group: Group) => {
+    const newGroup: Group = {
+      ...group,
+      id: Date.now().toString(),
+      name: `${group.name} (コピー)`,
+      createdAt: new Date(),
+      lastOpened: undefined,
+    };
+    setGroups((prev) => [...prev, newGroup]);
+    toast("グループを複製しました");
+  };
+
+  const handleSaveLink = (data: Partial<Link>) => {
+    const groupId = selectedGroupForLink || editingLink?.groupId;
+    if (!groupId) return;
+
+    if (editingLink) {
+      setGroups((prev) =>
+        prev.map((g) =>
+          g.id === groupId
+            ? {
+                ...g,
+                links: g.links.map((l) =>
+                  l.id === editingLink.link.id ? { ...l, ...data } : l
+                ),
+              }
+            : g
+        )
+      );
+      toast("リンクを更新しました");
+    } else {
+      const newLink: Link = {
+        id: Date.now().toString(),
+        title: data.title!,
+        url: data.url!,
+        favicon: data.favicon,
+        order: 0,
+      };
+      setGroups((prev) =>
+        prev.map((g) =>
+          g.id === groupId ? { ...g, links: [...g.links, newLink] } : g
+        )
+      );
+      toast("リンクを追加しました");
+    }
+    setEditingLink(null);
+    setSelectedGroupForLink(null);
+  };
+
+  const handleEditLink = (groupId: string, linkId: string) => {
+    const group = groups.find((g) => g.id === groupId);
+    const link = group?.links.find((l) => l.id === linkId);
+    if (link) {
+      setEditingLink({ groupId, link });
+      setLinkDialogOpen(true);
+    }
+  };
+
+  const handleDeleteLink = (groupId: string, linkId: string) => {
+    setGroups((prev) =>
+      prev.map((g) =>
+        g.id === groupId
+          ? { ...g, links: g.links.filter((l) => l.id !== linkId) }
+          : g
+      )
+    );
+    toast("リンクを削除しました");
+  };
+
+  const handleAddLinkToGroup = (groupId: string) => {
+    setSelectedGroupForLink(groupId);
+    setLinkDialogOpen(true);
+  };
+
+  const handleTabChange = (tab: TabMode) => {
+    setCurrentTab(tab);
+    if (tab === "add") {
+      setGroupDialogOpen(true);
+    } else if (tab === "search") {
+      // Focus on search input
+      document.getElementById("search-input")?.focus();
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-background pb-20 md:pb-0">
+      <header className="border-b bg-card/95 backdrop-blur-sm sticky top-0 z-10 shadow-sm">
+        <div className="container mx-auto px-4 py-3 md:py-4">
+          <div className="flex items-center justify-between gap-4 mb-3 md:mb-4">
+            <div className="flex items-center gap-2 md:gap-3">
+              <div className="h-8 w-8 md:h-10 md:w-10 rounded-xl bg-gradient-to-br from-primary via-accent to-primary flex items-center justify-center text-xl md:text-2xl shadow-lg">
+                🔗
+              </div>
+              <div>
+                <h1 className="text-lg md:text-2xl font-bold text-balance">
+                  LinkBurst
+                </h1>
+                <p className="text-xs md:text-sm text-muted-foreground hidden md:block">
+                  リンクをまとめて管理・一括オープン
+                </p>
+              </div>
+            </div>
+            <Button
+              onClick={() => setGroupDialogOpen(true)}
+              size="default"
+              className="hidden md:flex shadow-md"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              グループ追加
+            </Button>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-2 md:gap-3">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                id="search-input"
+                placeholder="グループやリンクを検索..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant={showFavoritesOnly ? "default" : "outline"}
+                size="icon"
+                onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}
+                title="お気に入りのみ"
+                className="shadow-sm"
+              >
+                <Star
+                  className={`h-4 w-4 ${
+                    showFavoritesOnly ? "fill-current" : ""
+                  }`}
+                />
+              </Button>
+              <Select
+                value={sortMode}
+                onValueChange={(v) => setSortMode(v as SortMode)}
+              >
+                <SelectTrigger className="w-[120px] md:w-[140px] shadow-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="name">名前順</SelectItem>
+                  <SelectItem value="recent">最近使用</SelectItem>
+                  <SelectItem value="created">作成日順</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() =>
+                  setViewMode(viewMode === "grid" ? "list" : "grid")
+                }
+                title={viewMode === "grid" ? "リスト表示" : "グリッド表示"}
+                className="hidden md:flex shadow-sm"
+              >
+                {viewMode === "grid" ? (
+                  <List className="h-4 w-4" />
+                ) : (
+                  <Grid3x3 className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
+          </div>
         </div>
+      </header>
+
+      <main className="container mx-auto px-4 py-6 md:py-8">
+        {currentTab === "settings" ? (
+          <div className="max-w-2xl mx-auto">
+            <div className="bg-card rounded-2xl p-6 md:p-8 shadow-lg">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg">
+                  <SettingsIcon className="h-6 w-6 text-primary-foreground" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold">設定</h2>
+                  <p className="text-sm text-muted-foreground">
+                    アプリの設定を管理
+                  </p>
+                </div>
+              </div>
+              <div className="space-y-4">
+                <div className="p-4 bg-muted/50 rounded-xl">
+                  <h3 className="font-semibold mb-2">データ管理</h3>
+                  <p className="text-sm text-muted-foreground mb-3">
+                    現在はモックデータを使用しています。データベース統合は今後実装予定です。
+                  </p>
+                  <Button variant="outline" disabled>
+                    エクスポート (準備中)
+                  </Button>
+                </div>
+                <div className="p-4 bg-muted/50 rounded-xl">
+                  <h3 className="font-semibold mb-2">アカウント</h3>
+                  <p className="text-sm text-muted-foreground mb-3">
+                    ログイン機能は今後実装予定です。
+                  </p>
+                  <Button variant="outline" disabled>
+                    ログイン (準備中)
+                  </Button>
+                </div>
+                <div className="p-4 bg-muted/50 rounded-xl">
+                  <h3 className="font-semibold mb-2">バージョン</h3>
+                  <p className="text-sm text-muted-foreground">
+                    LinkBurst v1.0.0 (MVP)
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : filteredAndSortedGroups.length === 0 ? (
+          <div className="text-center py-16">
+            <div className="text-6xl mb-4">🔍</div>
+            <h2 className="text-2xl font-semibold mb-2">
+              {searchQuery
+                ? "グループが見つかりません"
+                : "グループがありません"}
+            </h2>
+            <p className="text-muted-foreground mb-6">
+              {searchQuery
+                ? "別のキーワードで検索してみてください"
+                : "新しいグループを作成してリンクを整理しましょう"}
+            </p>
+            {!searchQuery && (
+              <Button
+                onClick={() => setGroupDialogOpen(true)}
+                size="lg"
+                className="shadow-lg"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                最初のグループを作成
+              </Button>
+            )}
+          </div>
+        ) : (
+          <div
+            className={
+              viewMode === "grid"
+                ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6"
+                : "space-y-4 max-w-3xl mx-auto"
+            }
+          >
+            {filteredAndSortedGroups.map((group) => (
+              <GroupCard
+                key={group.id}
+                group={group}
+                onOpenAll={handleOpenAll}
+                onToggleFavorite={handleToggleFavorite}
+                onEdit={(g) => {
+                  setEditingGroup(g);
+                  setGroupDialogOpen(true);
+                }}
+                onDelete={handleDeleteGroup}
+                onDuplicate={handleDuplicateGroup}
+                onEditLink={handleEditLink}
+                onDeleteLink={handleDeleteLink}
+                onAddLink={handleAddLinkToGroup}
+              />
+            ))}
+          </div>
+        )}
       </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+
+      <MobileNav currentTab={currentTab} onTabChange={handleTabChange} />
+
+      <GroupDialog
+        open={groupDialogOpen}
+        onOpenChange={(open) => {
+          setGroupDialogOpen(open);
+          if (!open) {
+            setEditingGroup(null);
+            setCurrentTab("home");
+          }
+        }}
+        group={editingGroup}
+        onSave={handleSaveGroup}
+      />
+
+      <LinkDialog
+        open={linkDialogOpen}
+        onOpenChange={(open) => {
+          setLinkDialogOpen(open);
+          if (!open) {
+            setEditingLink(null);
+            setSelectedGroupForLink(null);
+          }
+        }}
+        link={editingLink?.link}
+        onSave={handleSaveLink}
+      />
     </div>
   );
 }
