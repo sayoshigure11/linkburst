@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { type Group, type Link, GROUP_COLORS } from "@/lib/types";
 import { Plus, Trash2 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { title } from "process";
 
 interface GroupDialogProps {
   open: boolean;
@@ -43,10 +44,18 @@ export function GroupDialog({
   group,
   onSave,
 }: GroupDialogProps) {
+  const existGroupLinks = group
+    ? group.links.map((g) => {
+        return { title: g.title, url: g.url };
+      })
+    : [];
+
   const [name, setName] = useState("");
   const [color, setColor] = useState(GROUP_COLORS[0].value);
   const [icon, setIcon] = useState(EMOJI_OPTIONS[0]);
-  const [links, setLinks] = useState<Array<{ title: string; url: string }>>([]);
+  // const [links, setLinks] = useState<Array<{ title: string; url: string }>>([]);
+  const [links, setLinks] =
+    useState<Array<{ title: string; url: string }>>(existGroupLinks);
 
   useEffect(() => {
     if (group) {
