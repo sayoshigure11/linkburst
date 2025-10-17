@@ -14,7 +14,6 @@ import { Label } from "@/components/ui/label";
 import { type Group, type Link, GROUP_COLORS } from "@/lib/types";
 import { Plus, Trash2 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { title } from "process";
 
 interface GroupDialogProps {
   open: boolean;
@@ -102,7 +101,10 @@ export function GroupDialog({
           id: `${Date.now()}-${index}`,
           title: l.title.trim(),
           url: finalUrl,
-          favicon: `${new URL(finalUrl).origin}/favicon.ico`,
+          // favicon: `${new URL(finalUrl).origin}/favicon.ico`,
+          favicon: `https://www.google.com/s2/favicons?domain=${
+            new URL(finalUrl).origin
+          }`,
           order: index,
         };
       });

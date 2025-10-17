@@ -47,7 +47,10 @@ export function LinkDialog({
       finalUrl = "https://" + finalUrl;
     }
 
-    const favicon = `${new URL(finalUrl).origin}/favicon.ico`;
+    // const favicon = `${new URL(finalUrl).origin}/favicon.ico`;
+    const favicon = `https://www.google.com/s2/favicons?domain=${
+      new URL(finalUrl).origin
+    }`;
     onSave({ title, url: finalUrl, favicon });
     onOpenChange(false);
   };
