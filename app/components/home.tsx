@@ -19,6 +19,7 @@ import {
 import { toast } from "sonner";
 
 import { v4 as uuidv4 } from "uuid";
+import { group } from "console";
 
 type ViewMode = "grid" | "list";
 type SortMode = "name" | "recent" | "created";
@@ -277,24 +278,48 @@ export default function Home({ fetchedGroups }: { fetchedGroups: Group[] }) {
     }
   };
 
-  const handleSaveLink = (data: Partial<Link>) => {
+  const handleSaveLink = async (data: Partial<Link>) => {
     const groupId = selectedGroupForLink || editingLink?.groupId;
     if (!groupId) return;
 
+    const groupLinks = groups.find((g) => g.id === groupId)?.links;
+
     if (editingLink) {
-      setGroups((prev) =>
-        prev.map((g) =>
-          g.id === groupId
-            ? {
-                ...g,
-                links: g.links.map((l) =>
-                  l.id === editingLink.link.id ? { ...l, ...data } : l
-                ),
-              }
-            : g
-        )
+      if (!groupLinks) return;
+      const newLinks = groupLinks.map((g) =>
+        g.id === editingLink.link.id ? { ...g, ...data } : g
       );
-      toast("リンクを更新しました");
+      const res = await fetch("/api/firebase/link", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          newLinks,
+          groupId,
+          reqType: "update",
+        }),
+      });
+      const result = await res.json();
+
+      if (result.status === 200) {
+        setGroups((prev) =>
+          prev.map((g) =>
+            g.id === groupId
+              ? {
+                  ...g,
+                  links: g.links.map((l) =>
+                    l.id === editingLink.link.id ? { ...l, ...data } : l
+                  ),
+                }
+              : g
+          )
+        );
+        toast("リンクを更新しました");
+      } else {
+        toast("リンクの更新に失敗しました");
+        console.log("リンクの更新に失敗しました");
+      }
     } else {
       const newLink: Link = {
         // id: Date.now().toString(),
@@ -304,12 +329,32 @@ export default function Home({ fetchedGroups }: { fetchedGroups: Group[] }) {
         favicon: data.favicon,
         order: 0,
       };
-      setGroups((prev) =>
-        prev.map((g) =>
-          g.id === groupId ? { ...g, links: [...g.links, newLink] } : g
-        )
-      );
-      toast("リンクを追加しました");
+
+      const newLinks = groupLinks ? [...groupLinks, newLink] : [newLink];
+      const res = await fetch("/api/firebase/link", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          groupId,
+          newLinks,
+          reqType: "create",
+        }),
+      });
+      const result = await res.json();
+
+      if (result.status === 200) {
+        setGroups((prev) =>
+          prev.map((g) =>
+            g.id === groupId ? { ...g, links: [...g.links, newLink] } : g
+          )
+        );
+        toast("リンクを追加しました");
+      } else {
+        toast("リンクの追加に失敗しました");
+        console.log("リンクの追加に失敗しました");
+      }
     }
     setEditingLink(null);
     setSelectedGroupForLink(null);
@@ -324,15 +369,36 @@ export default function Home({ fetchedGroups }: { fetchedGroups: Group[] }) {
     }
   };
 
-  const handleDeleteLink = (groupId: string, linkId: string) => {
-    setGroups((prev) =>
-      prev.map((g) =>
-        g.id === groupId
-          ? { ...g, links: g.links.filter((l) => l.id !== linkId) }
-          : g
-      )
-    );
-    toast("リンクを削除しました");
+  const handleDeleteLink = async (groupId: string, linkId: string) => {
+    const findGroup = groups.find((g) => g.id === groupId);
+    if (!findGroup) return;
+    const newLinks = findGroup.links.filter((l) => l.id !== linkId);
+    const res = await fetch("/api/firebase/link", {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        groupId,
+        newLinks,
+        reqType: "delete",
+      }),
+    });
+    const result = await res.json();
+
+    if (result.status === 200) {
+      setGroups((prev) =>
+        prev.map((g) =>
+          g.id === groupId
+            ? { ...g, links: g.links.filter((l) => l.id !== linkId) }
+            : g
+        )
+      );
+      toast("リンクを削除しました");
+    } else {
+      toast("リンクの削除に失敗しました");
+      console.log("リンクの削除に失敗しました");
+    }
   };
 
   const handleAddLinkToGroup = (groupId: string) => {

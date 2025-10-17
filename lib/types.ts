@@ -18,6 +18,8 @@ export interface Group {
   lastOpened?: Date
 }
 
+export type LinkUpdateRequestType = "create"|"update"|"delete"
+
 export const GROUP_COLORS = [
   { name: "Purple", value: "oklch(0.55 0.22 264)", light: "oklch(0.95 0.05 264)" },
   { name: "Pink", value: "oklch(0.65 0.25 330)", light: "oklch(0.95 0.05 330)" },
