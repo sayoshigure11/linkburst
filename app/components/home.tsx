@@ -18,6 +18,8 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 
+import { v4 as uuidv4 } from "uuid";
+
 type ViewMode = "grid" | "list";
 type SortMode = "name" | "recent" | "created";
 type TabMode = "home" | "search" | "add" | "settings";
@@ -150,23 +152,58 @@ export default function Home({ fetchedGroups }: { fetchedGroups: Group[] }) {
   //   }
   // };
 
-  const handleToggleFavorite = (groupId: string) => {
-    setGroups((prev) =>
-      prev.map((g) =>
-        g.id === groupId ? { ...g, isFavorite: !g.isFavorite } : g
-      )
+  const handleToggleFavorite = async (groupId: string) => {
+    const nowIsFavorite = groups.find((g) => g.id === groupId)?.isFavorite;
+    if (typeof nowIsFavorite !== "boolean") return;
+    const res = await fetch(
+      `/api/firebase/group?groupId=${groupId}&favorite=${!nowIsFavorite}`,
+      {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      }
     );
+    const result = await res.json();
+
+    if (result.status === 200) {
+      setGroups((prev) =>
+        prev.map((g) =>
+          g.id === groupId ? { ...g, isFavorite: !g.isFavorite } : g
+        )
+      );
+    } else {
+      console.log("お気に入りの更新に失敗しました");
+    }
   };
 
-  const handleSaveGroup = (data: Partial<Group> & { links?: Link[] }) => {
+  // const handleSaveGroup = async (data: Partial<Group> & { links?: Link[] }) => {
+  const handleSaveGroup = async (data: Partial<Group>) => {
     if (editingGroup) {
-      setGroups((prev) =>
-        prev.map((g) => (g.id === editingGroup.id ? { ...g, ...data } : g))
-      );
-      toast("グループを更新しました");
+      const res = await fetch("/api/firebase/group", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          group: editingGroup,
+        }),
+      });
+      const result = await res.json();
+
+      if (result.status === 200) {
+        setGroups((prev) =>
+          prev.map((g) => (g.id === editingGroup.id ? { ...g, ...data } : g))
+        );
+        toast("グループを更新しました");
+      } else {
+        toast("グループの更新に失敗しました");
+        console.log("グループの更新に失敗", result.message);
+      }
     } else {
       const newGroup: Group = {
-        id: Date.now().toString(),
+        // id: Date.now().toString(),
+        id: uuidv4(),
         name: data.name!,
         color: data.color!,
         icon: data.icon,
@@ -175,8 +212,24 @@ export default function Home({ fetchedGroups }: { fetchedGroups: Group[] }) {
         order: groups.length,
         createdAt: new Date(),
       };
-      setGroups((prev) => [...prev, newGroup]);
-      toast("グループを作成しました");
+      const res = await fetch(`/api/firebase/group`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          group: newGroup,
+        }),
+      });
+      const result = await res.json();
+
+      if (result.status === 200) {
+        setGroups((prev) => [...prev, newGroup]);
+        toast("グループを作成しました");
+      } else {
+        toast("グループの作成に失敗しました");
+        console.log("グループの作成に失敗", result.message);
+      }
     }
     setEditingGroup(null);
   };
@@ -197,7 +250,8 @@ export default function Home({ fetchedGroups }: { fetchedGroups: Group[] }) {
   const handleDuplicateGroup = async (group: Group) => {
     const newGroup: Group = {
       ...group,
-      id: Date.now().toString(),
+      // id: Date.now().toString(),
+      id: uuidv4(),
       name: `${group.name} (コピー)`,
       createdAt: new Date(),
       lastOpened: undefined,
@@ -243,7 +297,8 @@ export default function Home({ fetchedGroups }: { fetchedGroups: Group[] }) {
       toast("リンクを更新しました");
     } else {
       const newLink: Link = {
-        id: Date.now().toString(),
+        // id: Date.now().toString(),
+        id: uuidv4(),
         title: data.title!,
         url: data.url!,
         favicon: data.favicon,
