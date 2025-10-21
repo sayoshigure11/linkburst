@@ -1,4 +1,6 @@
+import { auth } from "@/auth";
 import db from "@/firebase";
+import { crudLink } from "@/lib/databaseFunc";
 import { Link, LinkUpdateRequestType } from "@/lib/types";
 import { doc, updateDoc } from "firebase/firestore";
 import { NextRequest, NextResponse } from "next/server";
@@ -7,6 +9,12 @@ import { NextRequest, NextResponse } from "next/server";
 // リンクの追加、編集、削除
 export async function PATCH(req: NextRequest) {
     try {
+        const session = await auth()
+        if (!session?.user?.id) {
+            console.log("Unauthorized")
+            return NextResponse.json({message:"ログインしてください", status:401})
+        }
+
         const { newLinks, groupId, reqType }: { newLinks: Link[], groupId:string, reqType:LinkUpdateRequestType } = await req.json()
 
         if (!groupId) return NextResponse.json({ error: "GroupIDがありません" }, { status: 400 })
@@ -19,10 +27,12 @@ export async function PATCH(req: NextRequest) {
         // reqTypeが[create]なら「追加」、[update]なら「編集」、[delete]なら「削除」
         const mes = reqType === "create" ? "追加" : reqType === "update" ? "編集" : "削除"
 
-        const ref = doc(db, "groups", groupId)
-        await updateDoc(ref, {
-            "links": newLinks
-        })
+        // const ref = doc(db, "groups", groupId)
+        // await updateDoc(ref, {
+        //     "links": newLinks
+        // })
+
+        await crudLink(session.user.id, groupId, newLinks)
 
         return NextResponse.json({
             message: `リンクの${mes}に成功しました`,

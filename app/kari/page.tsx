@@ -1,9 +1,8 @@
-import React from "react";
-import Home from "./components/home";
 import { baseUrl } from "@/lib/baseUrl";
+import Kari from "./components/kari";
 import { headers } from "next/headers";
 
-async function HomePage() {
+async function KariPage() {
   const url = await baseUrl();
   const res = await fetch(`${url}/api/firebase/group`, {
     headers: {
@@ -13,7 +12,12 @@ async function HomePage() {
   const fetched = await res.json();
   console.log("fetched", fetched);
   const fetchedGroups = fetched.data;
-  return <Home fetchedGroups={fetchedGroups} />;
+
+  return (
+    <div>
+      <Kari group={fetchedGroups} />
+    </div>
+  );
 }
 
-export default HomePage;
+export default KariPage;
