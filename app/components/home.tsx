@@ -19,9 +19,7 @@ import {
 import { toast } from "sonner";
 
 import { v4 as uuidv4 } from "uuid";
-import { group } from "console";
 import SignInButton from "@/components/sign-in-button";
-import { kakunin } from "@/lib/actions";
 
 type ViewMode = "grid" | "list";
 type SortMode = "name" | "recent" | "created";
@@ -437,9 +435,6 @@ export default function Home({ fetchedGroups }: { fetchedGroups: Group[] }) {
                 <p className="text-xs md:text-sm text-muted-foreground hidden md:block">
                   リンクをまとめて管理・一括オープン
                 </p>
-                <form action={kakunin}>
-                  <button type="submit">確認</button>
-                </form>
               </div>
             </div>
             <div className="flex items-center-center justify-between">
