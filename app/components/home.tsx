@@ -1,5 +1,5 @@
 "use client";
-
+import { useSession } from "next-auth/react";
 import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,6 +20,8 @@ import { toast } from "sonner";
 
 import { v4 as uuidv4 } from "uuid";
 import { group } from "console";
+import SignInButton from "@/components/sign-in-button";
+import { kakunin } from "@/lib/actions";
 
 type ViewMode = "grid" | "list";
 type SortMode = "name" | "recent" | "created";
@@ -416,6 +418,9 @@ export default function Home({ fetchedGroups }: { fetchedGroups: Group[] }) {
     }
   };
 
+  const { data } = useSession();
+  console.log("data", data);
+
   return (
     <div className="min-h-screen bg-background pb-20 md:pb-0">
       <header className="border-b bg-card/95 backdrop-blur-sm sticky top-0 z-10 shadow-sm">
@@ -432,16 +437,22 @@ export default function Home({ fetchedGroups }: { fetchedGroups: Group[] }) {
                 <p className="text-xs md:text-sm text-muted-foreground hidden md:block">
                   リンクをまとめて管理・一括オープン
                 </p>
+                <form action={kakunin}>
+                  <button type="submit">確認</button>
+                </form>
               </div>
             </div>
-            <Button
-              onClick={() => setGroupDialogOpen(true)}
-              size="default"
-              className="hidden md:flex shadow-md"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              グループ追加
-            </Button>
+            <div className="flex items-center-center justify-between">
+              <SignInButton />
+              <Button
+                onClick={() => setGroupDialogOpen(true)}
+                size="default"
+                className="hidden md:flex shadow-md"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                グループ追加
+              </Button>
+            </div>
           </div>
 
           <div className="flex flex-col sm:flex-row gap-2 md:gap-3">
@@ -502,7 +513,106 @@ export default function Home({ fetchedGroups }: { fetchedGroups: Group[] }) {
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-6 md:py-8">
+      {data ? (
+        <main className="container mx-auto px-4 py-6 md:py-8">
+          {currentTab === "settings" ? (
+            <div className="max-w-2xl mx-auto">
+              <div className="bg-card rounded-2xl p-6 md:p-8 shadow-lg">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg">
+                    <SettingsIcon className="h-6 w-6 text-primary-foreground" />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold">設定</h2>
+                    <p className="text-sm text-muted-foreground">
+                      アプリの設定を管理
+                    </p>
+                  </div>
+                </div>
+                <div className="space-y-4">
+                  <div className="p-4 bg-muted/50 rounded-xl">
+                    <h3 className="font-semibold mb-2">データ管理</h3>
+                    <p className="text-sm text-muted-foreground mb-3">
+                      現在はモックデータを使用しています。データベース統合は今後実装予定です。
+                    </p>
+                    <Button variant="outline" disabled>
+                      エクスポート (準備中)
+                    </Button>
+                  </div>
+                  <div className="p-4 bg-muted/50 rounded-xl">
+                    <h3 className="font-semibold mb-2">アカウント</h3>
+                    <p className="text-sm text-muted-foreground mb-3">
+                      ログイン機能は今後実装予定です。
+                    </p>
+                    <Button variant="outline" disabled>
+                      ログイン (準備中)
+                    </Button>
+                  </div>
+                  <div className="p-4 bg-muted/50 rounded-xl">
+                    <h3 className="font-semibold mb-2">バージョン</h3>
+                    <p className="text-sm text-muted-foreground">
+                      LinkBurst v1.0.0 (MVP)
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : filteredAndSortedGroups.length === 0 ? (
+            <div className="text-center py-16">
+              <div className="text-6xl mb-4">🔍</div>
+              <h2 className="text-2xl font-semibold mb-2">
+                {searchQuery
+                  ? "グループが見つかりません"
+                  : "グループがありません"}
+              </h2>
+              <p className="text-muted-foreground mb-6">
+                {searchQuery
+                  ? "別のキーワードで検索してみてください"
+                  : "新しいグループを作成してリンクを整理しましょう"}
+              </p>
+              {!searchQuery && (
+                <Button
+                  onClick={() => setGroupDialogOpen(true)}
+                  size="lg"
+                  className="shadow-lg"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  最初のグループを作成
+                </Button>
+              )}
+            </div>
+          ) : (
+            <div
+              className={
+                viewMode === "grid"
+                  ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6"
+                  : "space-y-4 max-w-3xl mx-auto"
+              }
+            >
+              {filteredAndSortedGroups.map((group) => (
+                <GroupCard
+                  key={group.id}
+                  group={group}
+                  onOpenAll={handleOpenAll}
+                  onToggleFavorite={handleToggleFavorite}
+                  onEdit={(g) => {
+                    setEditingGroup(g);
+                    setGroupDialogOpen(true);
+                  }}
+                  onDelete={handleDeleteGroup}
+                  onDuplicate={handleDuplicateGroup}
+                  onEditLink={handleEditLink}
+                  onDeleteLink={handleDeleteLink}
+                  onAddLink={handleAddLinkToGroup}
+                />
+              ))}
+            </div>
+          )}
+        </main>
+      ) : (
+        <div />
+      )}
+      {/* <main className="container mx-auto px-4 py-6 md:py-8">
         {currentTab === "settings" ? (
           <div className="max-w-2xl mx-auto">
             <div className="bg-card rounded-2xl p-6 md:p-8 shadow-lg">
@@ -596,7 +706,7 @@ export default function Home({ fetchedGroups }: { fetchedGroups: Group[] }) {
             ))}
           </div>
         )}
-      </main>
+      </main> */}
 
       <MobileNav currentTab={currentTab} onTabChange={handleTabChange} />
 
